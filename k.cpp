@@ -87,20 +87,39 @@ vector <R> sameRemove (vector <R> a) {
         return b;
 }
 
-vector <int> xBorderSearch (int n, int NE, int NP, vector <vector <int>> e, vector <vector <float>> nK, vector <int> nN) {
+vector <int> BorderSearch (int n, int NE, int NP, vector <vector <int>> e, vector <vector <float>> nC, vector <int> nN) {
 	vector <int> a;
-	float minC = minInColumn <float> (nK, NP, n);
-	float maxC = maxInColumn <float> (nK, NP, n);
-	for (int i = 0; i < NP; i++)
-		if (abs(nK[i][n] - maxC) < eps or abs(nK[i][n] - minC) < eps)
-			for (int j = 0; j < NE; j++)
+	float minC = minInColumn <float> (nC, NP, n);
+	float maxC = maxInColumn <float> (nC, NP, n);
+	for (int i = 0; i < NP; i++) {
+		int t = 0;
+		if (abs(nC[i][n] - maxC) < eps or abs(nC[i][n] - minC) < eps)
+//			a.push_back(nN[i]);
+			for (int j = 0; j < NE; j++) {
 				for (int k = 0; k < 3; k++)
 					if (e[j][k] == nN[i])
 						a.push_back(j);
-		
+			}
+	}
 
 	vector <int> b = sameRemove <int> (a);
-	return b;	
+	vector <int> c;
+	for (int i = 0; i < b.size(); i++) {
+		int t = 0;
+		int u, v;
+		for (int j = 0; j < 3; j++)
+			if ((nC[e[b[i]][j]][n] == minC) or (nC[e[b[i]][j]][n] == maxC)) {
+				t++;
+				if (t == 1) u = e[b[i]][j];
+				if (t == 2) v = e[b[i]][j];
+			}
+		if (t == 2) {
+			c.push_back(u);
+			c.push_back(v);
+		}
+	}
+
+	return c;	
 }
 
 int nodeSearch (int m, vector <int> arr) {
@@ -112,16 +131,41 @@ int nodeSearch (int m, vector <int> arr) {
 
 }
 
+Matrix2f iJCalc (float Xq, float Xq1, float Yq, float Yq1, int xi, int eta) {
+	Matrix2f J;
+	J << 0.5 * ((eta / (1 - xi*xi)) * (Xq - Xq1) + 1 / (1 - xi*xi) * (Xq + Xq1)),
+	      0.5 * (1 + xi / (1 - xi) * (Xq - Xq1)),
+	      0.5 * ((eta / (1 - xi*xi)) * (Yq - Yq1) + 1 / (1 - xi*xi) * (Yq + Yq1)),
+              0.5 * (1 + xi / (1 - xi) * (Yq - Yq1));
+	Matrix2f iJ = J.inverse();
+	return iJ;	
+}
+
 class Element {
 public:	
 	Vector3f x;
 	Vector3f y;
 	Vector3f nod;
-	int f;
 	Matrix3f C;
 	Matrix <float, 3, 6> B;
 	Matrix <float, 6, 6> k;
+
+	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
+
+class InfElement {
+public:
+	
+	Vector <float, 4> P;
+	Vector <float, 4> Q;
+	
+	Matrix <float, 3, 8> B;
+	Matrix <float, 8, 8> k;
+	Matrix2f J;
+	vector <float> iJ;
+	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+};
+
 
 int main() {
 /*
@@ -133,8 +177,8 @@ int main() {
 	getline(cin, str_nodC);
 */
 	float F = 1;
-	float Young = 1200;
-	float Poisson = 0.2;
+	float Young = 2000;
+	float Poisson = 0.3;
 //	cin >> F;
 //	cin >> Young;
 //	cin >> Poisson
@@ -148,7 +192,18 @@ int main() {
 	elements = inarr <int> (NE, N, "elements1.txt"); //elements numbers NExN
 	nodesN = inarr1 <int> (NP, "nodesN.txt"); //nodes numbers NP
 	nodesC = inarr <float> (NP, 2, "nodesC.txt"); //coordinates of nodes NPx2
-	vector <int> xBorder = xBorderSearch (0, NE, NP, elements, nodesC, nodesN);
+	
+//	vector <vector <int>> elements2 (NE, vector <int> (N));
+//        vector <int> nodesN2 (NP);
+
+	for (int i = 0; i < NP; i++) {
+		for (int j = 0; j < NE; j++)
+			for (int l = 0; l < 3; l++)
+				if (elements[j][l] == nodesN[i])
+					elements[j][l] = i;
+		nodesN[i] = i;
+	}	
+ 
 
 	Matrix3f D;
 	D <<   	1, Poisson, 0,
@@ -162,6 +217,10 @@ int main() {
 
 
 	vector <Element> element(NE);
+
+	vector <int> xBorder = BorderSearch (0, NE, NP, elements, nodesC, nodesN);
+        vector <int> yBorder = BorderSearch (1, NE, NP, elements, nodesC, nodesN);
+
 	for (int i = 0; i < NE; i++) {
 		element[i].nod << elements[i][0], elements[i][1], elements[i][2];
 		vector <float> temp(6);
@@ -185,7 +244,7 @@ int main() {
 			element[i].B(2, 2*j + 1) = iC(1, j);
 		}
 		element[i].k = element[i].B.transpose() * D * element[i].B * element[i].C.determinant() / 2;
-		
+// Global matrix		
 		for (int j = 0; j < 3; j++)
 			for (int l = 0; l < 3; l++) {
 
@@ -201,11 +260,89 @@ int main() {
 		}
 	
 	}
-
+	
 	K.setFromTriplets(tripl.begin(), tripl.end());
 	K.makeCompressed();
-	cout << K;
+//	cout << K;
+
+// Infinite elements
+
+	float Xc = (maxInColumn(nodesC, NP, 0) + minInColumn(nodesC, NP, 0)) / 2;
+	float Yc = (maxInColumn(nodesC, NP, 1) + minInColumn(nodesC, NP, 1)) / 2;
+	int NI = xBorder.size() + yBorder.size();
+	vector <InfElement> infel (NI);
+	
+	for (int i = 0; i < xBorder.size() / 2; i++) {
+		infel[i].P << nodesC[xBorder[2*i]][0], nodesC[xBorder[2*i]][1], nodesC[xBorder[2*i + 1]][0], nodesC[xBorder[2*i + 1]][1];
+		infel[i].Q << 2*infel[i].P[0], 2*infel[i].P[1], 2*infel[i].P[2], 2*infel[i].P[3];
+	}
+	for (int i = 0; i < yBorder.size() / 2; i++) {
+                infel[i + xBorder.size() / 2].P << nodesC[yBorder[2*i]][0], nodesC[yBorder[2*i]][1], nodesC[yBorder[2*i + 1]][0], nodesC[yBorder[2*i + 1]][1];
+                infel[i + xBorder.size() / 2].Q << 2*infel[i + xBorder.size() / 2].P[0], 2*infel[i + xBorder.size() / 2].P[1],
+						   2*infel[i + xBorder.size() / 2].P[2], 2*infel[i + xBorder.size() / 2].P[3];
+	}
+	
+	Vector <float, 4> Nxi, Neta;
+	Nxi << -0.5, -0.5, 0.5, 0.5;
+	Neta << 0.5, -0.5, -0.5, 0.5;
+	int xi, eta;
+
+//	for (int i = 0; i < NI / 2; i++) {
+		
+/*        	infel[i].J << 0.5 * ((eta / (1 - xi*xi)) * (infel[i].Q[0] - infel[i].Q[2]) + 1 / (1 - xi*xi) * (infel[i].Q[0] + infel[i].Q[2])),
+              	     0.5 * (1 + xi / (1 - xi) * (infel[i].Q[0] - infel[i].Q[2])),
+		     0.5 * ((eta / (1 - xi*xi)) * (infel[i].Q[1] - infel[i].Q[3]) + 1 / (1 - xi*xi) * (infel[i].Q[1] + infel[i].Q[3])),
+                     0.5 * (1 + xi / (1 - xi) * (infel[i].Q[1] - infel[i].Q[3]));
+*/int i = 0;
+		infel[i].J << 0.5 * (1 / (1 - xi*xi) * (infel[i].Q[0] + infel[i].Q[2])),
+                     0.5 * infel[i].Q[0],
+                     0.5 * (1 / (1 - xi*xi) * (infel[i].Q[1] + infel[i].Q[3])),
+                     0.5 * (infel[i].Q[1]);
+
+		Matrix2f IJ = infel[i].J.inverse();
+		//xi = 1;
+		cout << IJ;
+		/*for (int j = 0; j < 4; j++) {
+			if (j == 0) {
+				xi = -1;
+				eta = 1;		
+				infel[i].iJ.push_back(IJ(0, 0));
+				infel[i].iJ.push_back(IJ(0, 1));
+				infel[i].iJ.push_back(IJ(1, 0));
+				infel[i].iJ.push_back(IJ(1, 1));
+			}
+			 if (j == 1) {
+                                xi = -1;
+                                eta = -1;
+				infel[i].iJ.push_back(IJ(0, 0));
+                                infel[i].iJ.push_back(IJ(0, 1));
+                                infel[i].iJ.push_back(IJ(1, 0));
+                                infel[i].iJ.push_back(IJ(1, 1));
+                        }
+			 if (j == 2) {
+                                xi = 1;
+                                eta = -1;
+				infel[i].iJ.push_back(IJ(0, 0));
+                                infel[i].iJ.push_back(IJ(0, 1));
+                                infel[i].iJ.push_back(IJ(1, 0));
+                                infel[i].iJ.push_back(IJ(1, 1));
+                        }
+			 if (j == 3) {
+                                xi = 1;
+                                eta = 1;
+				infel[i].iJ.push_back(IJ(0, 0));
+                                infel[i].iJ.push_back(IJ(0, 1));
+                                infel[i].iJ.push_back(IJ(1, 0));
+                                infel[i].iJ.push_back(IJ(1, 1));
+                        }
+		}
+	*/
+	}
+	
+//	for (int i = 0; i < 16; i++)
+//		cout << infel[1].iJ[i] << " ";
+
+
 
 	return 0;
 }
-
