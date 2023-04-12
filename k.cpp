@@ -122,6 +122,18 @@ vector <int> BorderSearch (int n, int NE, int NP, vector <vector <int>> e, vecto
 	return c;	
 }
 
+vector <float> IJCalc (float a, float b, float c, float d, int xi, int eta) {
+	vector <float> ij;
+	float det;
+	det = b*c - a*d + b*c * xi - a*d * xi - b*c * eta + a*d * eta + b*c * xi*eta - a*d * xi*eta;
+	ij.push_back(2*(c - d * xi*xi*xi + c * xi*xi + 2*d * xi*xi - 2*c * xi - d * xi) / det);
+        ij.push_back(2*(- a + b * xi*xi*xi - a * xi*xi - 2*b * xi*xi + 2*a * xi + b * xi) / det);
+        ij.push_back(2*(- c - d + c * xi + d * xi - c * eta + d * eta + c * xi*eta - d * xi*eta) / det);
+        ij.push_back(2*(a + b - a * xi - b * xi + a * eta - b * eta - a * xi*eta + b * xi*eta) / det);
+	return ij;
+
+}
+
 int nodeSearch (int m, vector <int> arr) {
 	int i;
 	for (i = 0; i < arr.size(); i++) 
@@ -129,16 +141,6 @@ int nodeSearch (int m, vector <int> arr) {
 			break;
 	return i;
 
-}
-
-Matrix2f iJCalc (float Xq, float Xq1, float Yq, float Yq1, int xi, int eta) {
-	Matrix2f J;
-	J << 0.5 * ((eta / (1 - xi*xi)) * (Xq - Xq1) + 1 / (1 - xi*xi) * (Xq + Xq1)),
-	      0.5 * (1 + xi / (1 - xi) * (Xq - Xq1)),
-	      0.5 * ((eta / (1 - xi*xi)) * (Yq - Yq1) + 1 / (1 - xi*xi) * (Yq + Yq1)),
-              0.5 * (1 + xi / (1 - xi) * (Yq - Yq1));
-	Matrix2f iJ = J.inverse();
-	return iJ;	
 }
 
 class Element {
@@ -161,8 +163,9 @@ public:
 	
 	Matrix <float, 3, 8> B;
 	Matrix <float, 8, 8> k;
-	Matrix2f J;
-	vector <float> iJ;
+	
+	vector <float> iJ; 
+		
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 
@@ -287,62 +290,74 @@ int main() {
 	Neta << 0.5, -0.5, -0.5, 0.5;
 	int xi, eta;
 
-//	for (int i = 0; i < NI / 2; i++) {
+	for (int i = 0; i < NI / 2; i++) {
 		
 /*        	infel[i].J << 0.5 * ((eta / (1 - xi*xi)) * (infel[i].Q[0] - infel[i].Q[2]) + 1 / (1 - xi*xi) * (infel[i].Q[0] + infel[i].Q[2])),
               	     0.5 * (1 + xi / (1 - xi) * (infel[i].Q[0] - infel[i].Q[2])),
 		     0.5 * ((eta / (1 - xi*xi)) * (infel[i].Q[1] - infel[i].Q[3]) + 1 / (1 - xi*xi) * (infel[i].Q[1] + infel[i].Q[3])),
                      0.5 * (1 + xi / (1 - xi) * (infel[i].Q[1] - infel[i].Q[3]));
-*/int i = 0;
-		infel[i].J << 0.5 * (1 / (1 - xi*xi) * (infel[i].Q[0] + infel[i].Q[2])),
-                     0.5 * infel[i].Q[0],
-                     0.5 * (1 / (1 - xi*xi) * (infel[i].Q[1] + infel[i].Q[3])),
-                     0.5 * (infel[i].Q[1]);
 
-		Matrix2f IJ = infel[i].J.inverse();
-		//xi = 1;
-		cout << IJ;
-		/*for (int j = 0; j < 4; j++) {
+		infel[i].det = infel[i].Q[1] * infel[i].Q[2] - infel[i].Q[0] * infel[i].Q[3] +
+		               infel[i].Q[1] * infel[i].Q[2] * xi - infel[i].Q[0] * infel[i].Q[3] * xi + 
+			       infel[i].Q[1] * infel[i].Q[2] * eta - infel[i].Q[0] * infel[i].Q[3] * eta + 
+			       infel[i].Q[1] * infel[i].Q[2] * xi * eta - infel[i].Q[0] * infel[i].Q[3] *xi * eta;
+
+		infel[i].IJ << 
+		2*(infel[i].Q[1] - infel[i].Q[3] * xi*xi*xi + infel[i].Q[1] * xi*xi + 2*infel[i].Q[3] * xi*xi - 2*infel[i].Q[1] * xi - infel[i].Q[3] * xi) / infel[i].det,
+		2*(- infel[i].Q[0] + infel[i].Q[2] * xi*xi*xi - infel[i].Q[0] * xi*xi - 2*infel[i].Q[2] * xi*xi + 2*infel[i].Q[0] * xi + infel[i].Q[2] * xi) / infel[i].det,
+		2*(- infel[i].Q[1] - infel[i].Q[3] + infel[i].Q[1] * xi + infel[i].Q[3] * xi - infel[i].Q[1] * eta + infel[i].Q[3] * eta + infel[i].Q[1] * xi*eta - infel[i].Q[3] * xi*eta) / infel[i].det,
+		2*(infel[i].Q[0] + infel[i].Q[2] - infel[i].Q[0] * xi - infel[i].Q[2] * xi + infel[i].Q[0] * eta - infel[i].Q[2] * eta - infel[i].Q[0] * xi*eta + infel[i].Q[2] * xi*eta) / infel[i].det;
+
+*/	
+		for (int j = 0; j < 4; j++) {
 			if (j == 0) {
-				xi = -1;
-				eta = 1;		
-				infel[i].iJ.push_back(IJ(0, 0));
-				infel[i].iJ.push_back(IJ(0, 1));
-				infel[i].iJ.push_back(IJ(1, 0));
-				infel[i].iJ.push_back(IJ(1, 1));
+				vector <float> ij;
+				ij = IJCalc(infel[i].Q[0], infel[i].Q[2], infel[i].Q[1], infel[i].Q[3], -1, 1);
+				infel[i].iJ.push_back(ij[0]);
+				infel[i].iJ.push_back(ij[1]);
+				infel[i].iJ.push_back(ij[2]);
+				infel[i].iJ.push_back(ij[3]);
 			}
 			 if (j == 1) {
-                                xi = -1;
-                                eta = -1;
-				infel[i].iJ.push_back(IJ(0, 0));
-                                infel[i].iJ.push_back(IJ(0, 1));
-                                infel[i].iJ.push_back(IJ(1, 0));
-                                infel[i].iJ.push_back(IJ(1, 1));
+				vector <float> ij;
+                                ij = IJCalc(infel[i].Q[0], infel[i].Q[2], infel[i].Q[1], infel[i].Q[3], -1, -1);
+                                infel[i].iJ.push_back(ij[0]);
+                                infel[i].iJ.push_back(ij[1]);
+                                infel[i].iJ.push_back(ij[2]);
+                                infel[i].iJ.push_back(ij[3]);
                         }
 			 if (j == 2) {
-                                xi = 1;
-                                eta = -1;
-				infel[i].iJ.push_back(IJ(0, 0));
-                                infel[i].iJ.push_back(IJ(0, 1));
-                                infel[i].iJ.push_back(IJ(1, 0));
-                                infel[i].iJ.push_back(IJ(1, 1));
+				vector <float> ij;
+                                ij = IJCalc(infel[i].Q[0], infel[i].Q[2], infel[i].Q[1], infel[i].Q[3], 1, -1);
+                                infel[i].iJ.push_back(ij[0]);
+                                infel[i].iJ.push_back(ij[1]);
+                                infel[i].iJ.push_back(ij[2]);
+                                infel[i].iJ.push_back(ij[3]); 
                         }
 			 if (j == 3) {
-                                xi = 1;
-                                eta = 1;
-				infel[i].iJ.push_back(IJ(0, 0));
-                                infel[i].iJ.push_back(IJ(0, 1));
-                                infel[i].iJ.push_back(IJ(1, 0));
-                                infel[i].iJ.push_back(IJ(1, 1));
+				vector <float> ij;
+                                ij = IJCalc(infel[i].Q[0], infel[i].Q[2], infel[i].Q[1], infel[i].Q[3], 1, 1);
+                                infel[i].iJ.push_back(ij[0]);
+                                infel[i].iJ.push_back(ij[1]);
+                                infel[i].iJ.push_back(ij[2]);
+                                infel[i].iJ.push_back(ij[3]); 
                         }
 		}
-	*/
-	}
-	
-//	for (int i = 0; i < 16; i++)
-//		cout << infel[1].iJ[i] << " ";
 
+		for (int j = 0; j < 4; j++) {
+			infel[i].B(0, 2*j) = Nxi[j]*infel[i].iJ[4*j] + Neta[j]*infel[i].iJ[4*j + 1];
+			infel[i].B(0, 2*j + 1) = 0;
+			infel[i].B(1, 2*j + 1) = Nxi[j]*infel[i].iJ[4*j + 2] + Neta[j]*infel[i].iJ[4*j + 3];
+			infel[i].B(1, 2*j) = 0;
+                	infel[i].B(2, 2*j) = Nxi[j]*infel[i].iJ[4*j + 2] + Neta[j]*infel[i].iJ[4*j + 3];
+			infel[i].B(2, 2*j + 1) = Nxi[j]*infel[i].iJ[4*j] + Neta[j]*infel[i].iJ[4*j + 1];
+		}
+		infel[i].k = infel[i].B.transpose() * D * infel[i].B;
+
+		cout << infel[i].k << endl << endl;
+	}
 
 
 	return 0;
 }
+
