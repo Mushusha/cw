@@ -11,6 +11,7 @@
 using namespace Eigen;
 using namespace std;
 
+
 int strcount (string str) {
 	int n = -1;
         char c;
@@ -64,14 +65,6 @@ S minInColumn (vector <vector <S>> a, int n, int col) {
         return minC;
 }
 
-int maxInArr (vector <int> arr) {
-	int t = arr[0];
-	for (int i = 0; i < arr.size(); i++)
-		if (t < arr[i])
-			t = arr[i];
-	return t;
-}
-
 template <typename R>
 vector <R> sameRemove (vector <R> a) {
         vector <R> b;
@@ -122,6 +115,14 @@ vector <int> BorderSearch (int n, int NE, int NP, vector <vector <int>> e, vecto
 	return c;	
 }
 
+int maxInArr (vector <int> arr) {
+        int t = arr[0];
+        for (int i = 0; i < arr.size(); i++)
+                if (t < arr[i])
+                        t = arr[i];
+        return t;
+}
+
 vector <float> IJCalc (float a, float b, float c, float d, int xi, int eta) {
 	vector <float> ij;
 	float det;
@@ -131,8 +132,9 @@ vector <float> IJCalc (float a, float b, float c, float d, int xi, int eta) {
         ij.push_back(2*(- c - d + c * xi + d * xi - c * eta + d * eta + c * xi*eta - d * xi*eta) / det);
         ij.push_back(2*(a + b - a * xi - b * xi + a * eta - b * eta - a * xi*eta + b * xi*eta) / det);
 	return ij;
-
 }
+
+
 
 int nodeSearch (int m, vector <int> arr) {
 	int i;
@@ -142,6 +144,34 @@ int nodeSearch (int m, vector <int> arr) {
 	return i;
 
 }
+
+float Nxi (float eta, int i) {
+	float Nn;
+	if (i == 0)
+		Nn = (-1 - eta) / 4;
+	if (i == 1)
+		Nn = (-1 + eta) / 4;
+	if (i == 2) 
+		Nn = (1 - eta) / 4;
+	if (i == 3)
+		Nn = (1 + eta) / 4;
+	return Nn;
+}
+
+float Neta (float xi, int i) {
+        float Nn;
+	if (i == 0)
+        	Nn = (1 - xi) / 4;
+	if (i == 1)
+		Nn = (-1 + xi) / 4;
+	if (i ==  2)
+		Nn = (-1 - xi) / 4;
+	if (i == 3)
+		Nn = (1 + xi) / 4;
+        return Nn;
+}
+
+
 
 class Element {
 public:	
@@ -214,15 +244,15 @@ int main() {
     		0, 0, (1 - Poisson) / 2;
 
 	D *= Young / (1 - pow(Poisson, 2));
-
-        SparseMatrix <float> K(2*maxInArr(nodesN) + 2, 2*maxInArr(nodesN) + 2);
-        vector <Triplet <float>> tripl;
-
-
-	vector <Element> element(NE);
+	
+	SparseMatrix <float> K (2*NP, 2*NP);	
+	vector <Triplet <float>> tripl;
 
 	vector <int> xBorder = BorderSearch (0, NE, NP, elements, nodesC, nodesN);
         vector <int> yBorder = BorderSearch (1, NE, NP, elements, nodesC, nodesN);
+
+	vector <Element> element(NE);
+
 
 	for (int i = 0; i < NE; i++) {
 		element[i].nod << elements[i][0], elements[i][1], elements[i][2];
@@ -263,16 +293,17 @@ int main() {
 		}
 	
 	}
-	
+
 	K.setFromTriplets(tripl.begin(), tripl.end());
-	K.makeCompressed();
-//	cout << K;
+        K.makeCompressed();
 
 // Infinite elements
 
 	float Xc = (maxInColumn(nodesC, NP, 0) + minInColumn(nodesC, NP, 0)) / 2;
 	float Yc = (maxInColumn(nodesC, NP, 1) + minInColumn(nodesC, NP, 1)) / 2;
-	int NI = xBorder.size() + yBorder.size();
+
+	int NI = (xBorder.size() + yBorder.size()) / 2;
+	
 	vector <InfElement> infel (NI);
 	
 	for (int i = 0; i < xBorder.size() / 2; i++) {
@@ -285,12 +316,12 @@ int main() {
 						   2*infel[i + xBorder.size() / 2].P[2], 2*infel[i + xBorder.size() / 2].P[3];
 	}
 	
-	Vector <float, 4> Nxi, Neta;
-	Nxi << -0.5, -0.5, 0.5, 0.5;
-	Neta << 0.5, -0.5, -0.5, 0.5;
-	int xi, eta;
 
-	for (int i = 0; i < NI / 2; i++) {
+	vector <float> GPxi {-0.5774, -0.5774, 0.5774, 0.5774};
+	vector <float> GPeta {0.5774, -0.5774, -0.5774, 0.5774};
+	K.resize(2*NP + 2*NI, 2*NP + 2*NI);
+
+	for (int i = 0; i < NI; i++) {
 		
 /*        	infel[i].J << 0.5 * ((eta / (1 - xi*xi)) * (infel[i].Q[0] - infel[i].Q[2]) + 1 / (1 - xi*xi) * (infel[i].Q[0] + infel[i].Q[2])),
               	     0.5 * (1 + xi / (1 - xi) * (infel[i].Q[0] - infel[i].Q[2])),
@@ -312,7 +343,7 @@ int main() {
 		for (int j = 0; j < 4; j++) {
 			if (j == 0) {
 				vector <float> ij;
-				ij = IJCalc(infel[i].Q[0], infel[i].Q[2], infel[i].Q[1], infel[i].Q[3], -1, 1);
+				ij = IJCalc(infel[i].Q[0], infel[i].Q[2], infel[i].Q[1], infel[i].Q[3], -0.5774, 0.5774);
 				infel[i].iJ.push_back(ij[0]);
 				infel[i].iJ.push_back(ij[1]);
 				infel[i].iJ.push_back(ij[2]);
@@ -320,7 +351,7 @@ int main() {
 			}
 			 if (j == 1) {
 				vector <float> ij;
-                                ij = IJCalc(infel[i].Q[0], infel[i].Q[2], infel[i].Q[1], infel[i].Q[3], -1, -1);
+                                ij = IJCalc(infel[i].Q[0], infel[i].Q[2], infel[i].Q[1], infel[i].Q[3], -0.5774, -0.5774);
                                 infel[i].iJ.push_back(ij[0]);
                                 infel[i].iJ.push_back(ij[1]);
                                 infel[i].iJ.push_back(ij[2]);
@@ -328,7 +359,7 @@ int main() {
                         }
 			 if (j == 2) {
 				vector <float> ij;
-                                ij = IJCalc(infel[i].Q[0], infel[i].Q[2], infel[i].Q[1], infel[i].Q[3], 1, -1);
+                                ij = IJCalc(infel[i].Q[0], infel[i].Q[2], infel[i].Q[1], infel[i].Q[3], 0.5774, -0.5774);
                                 infel[i].iJ.push_back(ij[0]);
                                 infel[i].iJ.push_back(ij[1]);
                                 infel[i].iJ.push_back(ij[2]);
@@ -336,7 +367,7 @@ int main() {
                         }
 			 if (j == 3) {
 				vector <float> ij;
-                                ij = IJCalc(infel[i].Q[0], infel[i].Q[2], infel[i].Q[1], infel[i].Q[3], 1, 1);
+                                ij = IJCalc(infel[i].Q[0], infel[i].Q[2], infel[i].Q[1], infel[i].Q[3], 0.5774, 0.5774);
                                 infel[i].iJ.push_back(ij[0]);
                                 infel[i].iJ.push_back(ij[1]);
                                 infel[i].iJ.push_back(ij[2]);
@@ -344,20 +375,93 @@ int main() {
                         }
 		}
 
-		for (int j = 0; j < 4; j++) {
-			infel[i].B(0, 2*j) = Nxi[j]*infel[i].iJ[4*j] + Neta[j]*infel[i].iJ[4*j + 1];
-			infel[i].B(0, 2*j + 1) = 0;
-			infel[i].B(1, 2*j + 1) = Nxi[j]*infel[i].iJ[4*j + 2] + Neta[j]*infel[i].iJ[4*j + 3];
-			infel[i].B(1, 2*j) = 0;
-                	infel[i].B(2, 2*j) = Nxi[j]*infel[i].iJ[4*j + 2] + Neta[j]*infel[i].iJ[4*j + 3];
-			infel[i].B(2, 2*j + 1) = Nxi[j]*infel[i].iJ[4*j] + Neta[j]*infel[i].iJ[4*j + 1];
-		}
-		infel[i].k = infel[i].B.transpose() * D * infel[i].B;
+		for (int j = 0; j < 8; j++)
+			for(int l = 0; l < 8; l++)
+				infel[i].k(j, l) = 0;
 
-		cout << infel[i].k << endl << endl;
+		for (int j = 0; j < 4; j++) {
+			for(int l = 0; l < 4; l++) {
+				infel[i].B(0, 2*l) = Nxi(GPeta[j], l) * infel[i].iJ[4*j] + Neta(GPxi[j], l) * infel[i].iJ[4*j + 1];
+				infel[i].B(0, 2*l + 1) = 0;
+				infel[i].B(1, 2*l + 1) = Nxi(GPeta[j], l) * infel[i].iJ[4*j + 2] + Neta(GPxi[j], l) * infel[i].iJ[4*j + 3];
+				infel[i].B(1, 2*l) = 0;
+                		infel[i].B(2, 2*l) = Nxi(GPeta[j], l) * infel[i].iJ[4*j + 2] + Neta(GPxi[j], l) * infel[i].iJ[4*j + 3];
+				infel[i].B(2, 2*l + 1) = Nxi(GPeta[j], l) * infel[i].iJ[4*j] + Neta(GPxi[j], l) * infel[i].iJ[4*j + 1];
+			infel[i].k += infel[i].B.transpose() * D * infel[i].B;
+			}
+		
+		}
 	}
 
+	for (int i = 0; i < NE + NI; i++) {
+		if (i < NE)
+		for (int j = 0; j < 3; j++)
+                        for (int l = 0; l < 3; l++) {
 
-	return 0;
+                        Triplet <float> trpl11(2*element[i].nod[j], 2*element[i].nod[l], 0);
+                        Triplet <float> trpl12(2*element[i].nod[j], 2*element[i].nod[l] + 1, 0);
+                        Triplet <float> trpl21(2*element[i].nod[j] + 1, 2*element[i].nod[l], 0);
+                        Triplet <float> trpl22(2*element[i].nod[j] + 1, 2*element[i].nod[l] + 1, 0);
+
+                        tripl.push_back(trpl11);
+                        tripl.push_back(trpl12);
+                        tripl.push_back(trpl21);
+                        tripl.push_back(trpl22);   
+		}
+
+		if ((i >= NE) and (i < NE + xBorder.size() / 2)) {	
+			vector <int> infnod {NP + 2*(i - NE), xBorder[2*(i - NE)], xBorder[2*(i - NE) + 1], NP + 2*(i - NE) + 1};
+			for (int j = 0; j < 4; j++)
+				for (int l = 0; l < 4; l++) {
+	
+					Triplet <float> trpl11(2*infnod[j], 2*infnod[l], infel[i - NE].k(2*j, 2*l));
+                	        	Triplet <float> trpl12(2*infnod[j], 2*infnod[l] + 1, infel[i - NE].k(2*j, 2*l + 1));
+	                	        Triplet <float> trpl21(2*infnod[j] + 1, infnod[l], infel[i - NE].k(2*j + 1, 2*l));
+	                        	Triplet <float> trpl22(2*infnod[j] + 1, 2*infnod[l] + 1, infel[i - NE].k(2*j + 1, 2*l + 1));
+
+	        	                tripl.push_back(trpl11);
+        	        	        tripl.push_back(trpl12);
+                	        	tripl.push_back(trpl21);             	
+					tripl.push_back(trpl22);
+				}
+		}
+		
+		if ((i >= NE + xBorder.size() / 2) and (i < NI)) {
+	                vector <int> infnod {NP + 2*(i - NE), yBorder[2*(i - NE)], yBorder[2*(i - NE) + 1], NP + 2*(i - NE) + 1};
+        	        for (int j = 0; j < 4; j++)
+                	        for (int l = 0; l < 4; l++) {
+	
+        	                        Triplet <float> trpl11(2*infnod[j], 2*infnod[l], infel[i - NE].k(2*j, 2*l));
+                	                Triplet <float> trpl12(2*infnod[j], 2*infnod[l] + 1, infel[i - NE].k(2*j, 2*l + 1));
+                        	        Triplet <float> trpl21(2*infnod[j] + 1, infnod[l], infel[i - NE].k(2*j + 1, 2*l));
+                                	Triplet <float> trpl22(2*infnod[j] + 1, 2*infnod[l] + 1, infel[i - NE].k(2*j + 1, 2*l + 1));
+
+                                	tripl.push_back(trpl11);
+	                                tripl.push_back(trpl12);
+        	                        tripl.push_back(trpl21);
+                	                tripl.push_back(trpl22);
+                        	}
+		}
+        }
+
+
+	K.setFromTriplets(tripl.begin(), tripl.end());
+        K.makeCompressed();	
+
+	VectorXf R (2*(NP + NI));
+	for (int i = 0; i < 2*(NI + NP); i++)
+		R(i) = 0;
+	for (int i = 0; i < xBorder.size() / 2; i++) {
+		R(2*(NP + 2*i)) = F;
+		R(2*(NP + 2*i + 1)) = F;
+	}
+
+	SimplicialLDLT<SparseMatrix <float> > solver(K);
+	VectorXf U = solver.solve(R);
+	cout << U;
+
+
+	return 0; 
 }
+
 
