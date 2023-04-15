@@ -3,6 +3,7 @@
 #include <vector>
 #include "Eigen/Dense"
 #include "Eigen/Sparse"
+#include "Eigen/Core"
 #include <cstring>
 #include <cmath>
 #define N 3
@@ -179,6 +180,9 @@ public:
 	Vector3f y;
 	Vector3f nod;
 	Matrix3f C;
+	Vector <float, 6> u;
+	Vector3f sigma;
+	Vector3f epsilon;
 	Matrix <float, 3, 6> B;
 	Matrix <float, 6, 6> k;
 
@@ -190,7 +194,10 @@ public:
 	
 	Vector <float, 4> P;
 	Vector <float, 4> Q;
-	
+
+	Vector <float, 8> u;
+	Vector3f sigma;
+	Vector3f epsilon;
 	Matrix <float, 3, 8> B;
 	Matrix <float, 8, 8> k;
 	
@@ -451,14 +458,56 @@ int main() {
 	VectorXf R (2*(NP + NI));
 	for (int i = 0; i < 2*(NI + NP); i++)
 		R(i) = 0;
+	
 	for (int i = 0; i < xBorder.size() / 2; i++) {
-		R(2*(NP + 2*i)) = F;
-		R(2*(NP + 2*i + 1)) = F;
+		if (nodesC[xBorder[2*i]][0] == minInColumn(nodesC, NP, 0)) {
+			R(2*NP + 2*i) += -1 * F;
+			R(2*NP + 2*i + 2) += -1 * F;
+		}
+		else {
+			R(2*NP + 2*i) += F;
+                        R(2*NP + 2*i + 2) += F;
+		}
 	}
 
 	SimplicialLDLT<SparseMatrix <float> > solver(K);
 	VectorXf U = solver.solve(R);
-	cout << U;
+	vector <float> vU;
+	for (int i = 0; i < U.size(); i++)
+		vU.push_back(U(i));
+	
+	for (int i = 0; i < NE; i++) {
+		for (int j = 0; j < 3; j++) {
+			element[i].u(2*j) = vU[2*element[i].nod[j]];
+			element[i].u(2*j + 1) = vU[2*element[i].nod[j] + 1];
+		}
+		element[i].sigma = D * element[i].B * element[i].u;
+		element[i].epsilon = element[i].B * element[i].u;
+		cout << element[i].epsilon << "\n------------\n";
+	}
+	
+	for (int i = 0; i < xBorder.size() / 2; i++) {
+		vector <int> infnod {NP + 2*i, xBorder[2*i], xBorder[2*i + 1], NP + 2*i + 1};
+                for (int j = 0; j < 4; j++) {
+                        infel[i].u(2*j) = vU[infnod[j]];
+                        infel[i].u(2*j + 1) = vU[infnod[j] + 1];
+                }
+                infel[i].sigma = D * infel[i].B * infel[i].u;
+		infel[i].epsilon = infel[i].B * infel[i].u;
+		cout << infel[i].epsilon << "\n------------\n";
+
+        }
+
+	for (int i = xBorder.size() / 2; i < NI; i++) {
+                vector <int> infnod {NP + 2*i, yBorder[2*(i - xBorder.size() / 2)], yBorder[2*(i - xBorder.size() / 2) + 1], NP + 2*i + 1};
+                for (int j = 0; j < 4; j++) {
+                        infel[i].u(2*j) = vU[infnod[j]];
+                        infel[i].u(2*j + 1) = vU[infnod[j] + 1];
+                }
+		infel[i].sigma = D * infel[i].B * infel[i].u;
+		infel[i].epsilon = infel[i].B * infel[i].u;
+		cout << infel[i].epsilon << "\n------------\n";
+        }
 
 
 	return 0; 
